@@ -41,7 +41,7 @@ use Google\Cloud\Speech\V1\RecognitionConfig\AudioEncoding;
 // change these variables if necessary
 $encoding = AudioEncoding::LINEAR16;
 $sampleRateHertz = 32000;
-$languageCode = 'es-CA';
+$languageCode = 'ca-ES';
 
 // get contents of a file into a string
 $content = file_get_contents($audioFile);
@@ -54,7 +54,8 @@ $audio = (new RecognitionAudio())
 $config = (new RecognitionConfig())
     ->setEncoding($encoding)
     ->setSampleRateHertz($sampleRateHertz)
-    ->setLanguageCode($languageCode);
+    ->setLanguageCode($languageCode)
+    ->setEnableAutomaticPunctuation(true);
 
 // create the speech client
 $client = new SpeechClient();
@@ -66,6 +67,7 @@ $operation->pollUntilComplete();
 if ($operation->operationSucceeded()) {
     $response = $operation->getResult();
 
+    $full_text = array();
     // each result is for a consecutive portion of the audio. iterate
     // through them to get the transcripts for the entire audio file.
     foreach ($response->getResults() as $result) {
@@ -73,9 +75,10 @@ if ($operation->operationSucceeded()) {
         $mostLikely = $alternatives[0];
         $transcript = $mostLikely->getTranscript();
         $confidence = $mostLikely->getConfidence();
-        printf('Transcript: %s' . PHP_EOL, $transcript);
-        printf('Confidence: %s' . PHP_EOL, $confidence);
+        $full_text[] = $transcript;
     }
+
+
 } else {
     print_r($operation->getError());
 }

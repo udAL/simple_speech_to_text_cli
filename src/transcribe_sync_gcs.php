@@ -41,7 +41,7 @@ use Google\Cloud\Speech\V1\RecognitionConfig\AudioEncoding;
 // change these variables if necessary
 $encoding = AudioEncoding::LINEAR16;
 $sampleRateHertz = 32000;
-$languageCode = 'en-US';
+$languageCode = 'ca-ES';
 
 // set string as audio content
 $audio = (new RecognitionAudio())
@@ -51,7 +51,8 @@ $audio = (new RecognitionAudio())
 $config = (new RecognitionConfig())
     ->setEncoding($encoding)
     ->setSampleRateHertz($sampleRateHertz)
-    ->setLanguageCode($languageCode);
+    ->setLanguageCode($languageCode)
+    ->setEnableAutomaticPunctuation(true);
 
 // create the speech client
 $client = new SpeechClient();
