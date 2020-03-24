@@ -23,21 +23,19 @@
 
 // Include Google Cloud dependendencies using Composer
 require_once __DIR__ . '/../vendor/autoload.php';
+require 'Utils.php';
 
 if (count($argv) != 3) {
     return print("Usage: php transcribe_async_gcs.php URI_ORG URI_DEST\n");
 }
 list($_, $uri_org, $uri_dest) = $argv;
 
-function randomString($length = 15)
-{
-    $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    $randstring = '';
-    for ($i = 0; $i < $length; $i++) {
-        $randstring .= $characters[rand(0, strlen($characters)-1)];
-    }
-    return $randstring;
+/*
+Example:
+if (!empty($_FILES['mp3'])) {
+    $data = getMP3BitRateSampleRate($_FILES['mp3']['tmp_name']);
 }
+*/
 
 # [START speech_transcribe_async_gcs]
 use Google\Cloud\Speech\V1\SpeechClient;
@@ -54,22 +52,51 @@ $encoding = AudioEncoding::LINEAR16;
 $sampleRateHertz = 32000;
 $languageCode = 'ca-ES';
 
+$storage = new StorageClient();
+
+// --- Origin ---
+$uri_org_arr = explode('/', $uri_org);
+if(!$uri_org_arr || sizeof($uri_org_arr) < 2 || $uri_org_arr[0] != 'gs:' || !$uri_org_arr[2] || !$uri_org_arr[3]) {
+    return print("Invalid uri URI_ORG\n");
+}
+$bucket_org = $uri_org_arr[2];
+$path_org = $uri_org_arr[3];
+
+$bucket_org = $storage->bucket($bucket_org);
+if(!$bucket_org->exists()) {
+    return print("Invalid bucket URI_ORG\n");
+}
+$file_org = $bucket_org->object($path_org);
+if(!$file_org->exists()) {
+    return print("Invalid path URI_ORG\n");
+}
+$ext = pathinfo($path_org, PATHINFO_EXTENSION);
+if($ext !== 'mp3') {
+    return print("Invalid extension URI_ORG\n");
+}
+$tmp = sys_get_temp_dir().'/speech/'.randomString(5).'.mp3';
+$file_org->downloadToFile($tmp);
+
+$sample = getMP3BitRateSampleRate($tmp);
+$sampleRateHertz = $sample['sampleRate'];
+print("Detected SampleRate ".$sampleRateHertz." Hz".PHP_EOL);
+
+// --- Destination ---
+$uri_dest = explode('/', $uri_dest);
+if(!$uri_dest || sizeof($uri_dest) < 2 || $uri_dest[0] != 'gs:' || !$uri_dest[2]) {
+    return print("Invalid uri URI_DEST\n");
+}
+$bucket_dest = $uri_dest[2];
+$path_dest = isset($uri_dest[3]) && $uri_dest[3] ? $uri_dest[3] : randomString(5).'.txt';
+
+$bucket_dest = $storage->bucket($bucket_dest);
+if(!$bucket_dest->exists()) {
+    return print("Invalid bucket URI_DEST\n");
+}
+
 // set string as audio content
 $audio = (new RecognitionAudio())
     ->setUri($uri_org);
-
-$uri_dest = explode('/', $uri_dest);
-if(!$uri_dest || sizeof($uri_dest) < 2 || $uri_dest[0] != 'gs:' || !$uri_dest[2]) {
-    return print("Invalid URI_DEST\n");
-}
-$bucket_name = $uri_dest[2];
-$path = isset($uri_dest[3]) && $uri_dest[3] ? $uri_dest[3] : randomString(5).'.txt';
-
-$storage = new StorageClient();
-$bucket = $storage->bucket($bucket_name);
-if(!$bucket->exists()) {
-    return print("Invalid URI_DEST\n");
-}
 
 // set config
 $config = (new RecognitionConfig())
@@ -83,11 +110,6 @@ $client = new SpeechClient();
 
 // create the asyncronous recognize operation
 $operation = $client->longRunningRecognize($config, $audio);
-
-sleep(1);
-$operation->isDone();
-print_r($operation->getMetadata());
-
 $operation->pollUntilComplete();
 
 if ($operation->operationSucceeded()) {
@@ -105,10 +127,11 @@ if ($operation->operationSucceeded()) {
     }
     $full_text = implode(' ', $full_text);
 
-    $bucket->upload($full_text, [
-        'name' => $path
+    $bucket_dest->upload($full_text, [
+        'name' => $path_dest
     ]);
 
+    print("Success!".PHP_EOL);
 } else {
     print_r($operation->getError());
 }
