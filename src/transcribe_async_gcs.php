@@ -48,7 +48,7 @@ use Google\Cloud\Storage\StorageClient;
 // $uri = 'The Cloud Storage object to transcribe (gs://your-bucket-name/your-object-name)';
 
 // change these variables if necessary
-$encoding = AudioEncoding::LINEAR16;
+$encoding = AudioEncoding::ENCODING_UNSPECIFIED;
 $sampleRateHertz = 32000;
 $languageCode = 'ca-ES';
 
@@ -74,12 +74,18 @@ $ext = pathinfo($path_org, PATHINFO_EXTENSION);
 if($ext !== 'mp3') {
     return print("Invalid extension URI_ORG\n");
 }
-$tmp = sys_get_temp_dir().'/speech/'.randomString(5).'.mp3';
+
+// --- Download ---
+$tmp = sys_get_temp_dir().'/'.randomString(5).'.mp3';
+$fh = fopen($tmp, 'w');
+fclose($fh);
 $file_org->downloadToFile($tmp);
 
+// --- Test Sample Rate ---
 $sample = getMP3BitRateSampleRate($tmp);
 $sampleRateHertz = $sample['sampleRate'];
 print("Detected SampleRate ".$sampleRateHertz." Hz".PHP_EOL);
+unlink($tmp);
 
 // --- Destination ---
 $uri_dest = explode('/', $uri_dest);
